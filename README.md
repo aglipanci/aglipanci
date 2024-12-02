@@ -1,7 +1,7 @@
 <div align="center">
 <h2> Hi there! 👋</h2>
 
-I'm a [#PHP](https://github.com/topics/php), [#Laravel](https://github.com/topics/laravel), [#JavaScript](https://github.com/topics/javascript), [#WordPress](https://github.com/topics/wordpress) Software Engineer and a [AWS Certified Solutions Architect – Associate](https://www.credly.com/badges/61508458-0369-4c48-8cc3-61e3b7f6d3fe/public_url).
+I'm a [#PHP](https://github.com/topics/php), [#Laravel](https://github.com/topics/laravel), [#JavaScript](https://github.com/topics/javascript), [#VueJs](https://github.com/topics/vuejs), #WordPress](https://github.com/topics/wordpress) Software Engineer and a [AWS Certified Solutions Architect – Associate](https://www.credly.com/badges/61508458-0369-4c48-8cc3-61e3b7f6d3fe/public_url).
 <br />
 
 Please feel to reach out ✌️
