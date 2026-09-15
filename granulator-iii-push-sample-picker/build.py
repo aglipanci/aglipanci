@@ -255,7 +255,13 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     sub_t = pb.obj("t b s s s", [X(1), Y(12), 80, 22], 1, ["bang", "", "", ""])
     sub_set = pb.obj("prepend set", [X(2), Y(12), 80, 22], 1, [""])
     thisdevice = pb.obj("live.thisdevice", [X(3), Y(8), 100, 22], 1, ["bang", "int", "int"])
-    td_t = pb.obj("t b b", [X(3), Y(9), 45, 22], 1, ["bang", "bang"])
+    td_t = pb.obj("t b b b", [X(3), Y(9), 60, 22], 1, ["bang", "bang", "bang"])
+    arm_msg = pb.msg("1", [X(3) + 80, Y(9), 30, 22])
+    arm_gate = pb.obj("gate", [X(3) + 80, Y(10), 40, 22], 2, [""])
+    pb.comment("no sample is loaded by the picker until the device finished loading (live.thisdevice), "
+               "so a Set restores its own sample", [X(3) + 130, Y(9), 520, 20], fontsize=9.0)
+    pb.connect(td_t, 2, arm_msg, 0)
+    pb.connect(arm_msg, 0, arm_gate, 0)
 
     # default text (fires before the set's saved value, which then overrides it)
     pb.connect(loadbang, 0, lb_t, 0)
@@ -318,7 +324,9 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     # ---- rescan: list sub-folders of the base path ----------------------------------------
     pb.comment("rescan: [folder] lists the sub-folders (types fold), sorted, counted, into a umenu",
                [X(3), Y(14), 560, 20], fontsize=10.0)
-    rescan_t = pb.obj("t b b", [X(3), Y(15), 45, 22], 1, ["bang", "bang"])
+    rescan_t = pb.obj("t b b b b", [X(3), Y(15), 75, 22], 1, ["bang", "bang", "bang", "bang"])
+    auto_int = pb.obj("int", [X(4) + 100, Y(15), 40, 22], 2, ["int"])
+    noload_msg = pb.msg("0", [X(4) + 150, Y(15), 30, 22])
     reset_fold = pb.obj("t b b", [X(4), Y(15), 45, 22], 1, ["bang", "bang"])
     zero_msg_f = pb.msg("0", [X(4), Y(16), 30, 22])
     zlclear_f = pb.msg("zlclear", [X(4) + 40, Y(16), 55, 22])
@@ -349,7 +357,8 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     pb.connect(root_t, 0, rescan_t, 0)        # changing Root (after its value was stored)
     pb.connect(sub_t, 0, rescan_t, 0)         # new sub-path text
     # order: reset (right), compute base (middle), continue after listing (left)
-    pb.connect(rescan_t, 1, reset_fold, 0)
+    pb.connect(rescan_t, 3, noload_msg, 0)     # a rescan never loads a file by itself ...
+    pb.connect(rescan_t, 2, reset_fold, 0)
     pb.connect(reset_fold, 1, zlclear_f, 0)
     pb.connect(reset_fold, 0, zero_msg_f, 0)
     pb.connect(zlclear_f, 0, grp_f, 0)
@@ -358,7 +367,8 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     pb.connect(zero_msg_f, 0, folders_num, 0)
     pb.connect(zero_msg_f, 0, menu_clear_f, 0)
     pb.connect(menu_clear_f, 0, folder_menu, 0)
-    pb.connect(rescan_t, 0, root_i, 0)        # bang int -> sel -> builds base -> base_reg outputs
+    pb.connect(rescan_t, 1, root_i, 0)        # bang int -> sel -> builds base -> base_reg outputs
+    pb.connect(rescan_t, 0, auto_int, 0)      # ... then Auto is back in charge
     pb.connect(base_reg, 0, base_t, 0)
     pb.connect(base_t, 4, set_res, 0)
     pb.connect(set_res, 0, resolved, 0)
@@ -465,7 +475,9 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     # after listing: load the current File if Auto is on
     pb.connect(fp_t, 0, after_x, 0)
     pb.connect(after_x, 0, gate_auto_f, 1)
-    pb.connect(auto_tog, 0, gate_auto_f, 0)
+    pb.connect(auto_tog, 0, auto_int, 0)
+    pb.connect(auto_int, 0, gate_auto_f, 0)
+    pb.connect(noload_msg, 0, gate_auto_f, 0)
 
     # ---- pick a file and emit its path -----------------------------------------------------
     pb.comment("load: File param (or Load / Random) -> clip -> zl nth -> <folder>/<file> -> "
@@ -494,11 +506,12 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     pb.connect(file_setmenu, 0, file_setmsg, 0)
     pb.connect(file_setmsg, 0, file_menu, 0)
     pb.connect(file_ti, 0, gate_auto_x, 1)
-    pb.connect(auto_tog, 0, gate_auto_x, 0)
+    pb.connect(auto_int, 0, gate_auto_x, 0)
     pb.connect(gate_auto_x, 0, load_now, 0)
     pb.connect(gate_auto_f, 0, load_now, 0)
     pb.connect(load_btn, 0, load_now, 0)
-    pb.connect(load_now, 0, cnt_x, 0)         # how many files? 0 -> nothing to load
+    pb.connect(load_now, 0, arm_gate, 1)
+    pb.connect(arm_gate, 0, cnt_x, 0)         # how many files? 0 -> nothing to load
     pb.connect(cnt_x, 0, guard, 0)
     pb.connect(guard, 1, guard_b, 0)
     pb.connect(guard_b, 0, file_idx, 0)
@@ -581,6 +594,24 @@ def add_picker(pb: PatcherBuilder, x0: float, y0: float, present: bool, prect_of
     pb.connect(new_setup, 0, banks, 0)
 
     return {"thisdevice": thisdevice, "auto_banks": auto_in, "loadbang": loadbang}
+
+
+def parameters_block(boxes: list[dict], banks: list[tuple[str, list[str]]], existing: dict | None = None,
+                     first_index: int = 0) -> dict:
+    """The patcher-level "parameters" map: one entry per parameter object plus the Push banks."""
+    params = dict(existing or {})
+    for b in boxes:
+        bx = b["box"]
+        v = bx.get("saved_attribute_attributes", {}).get("valueof", {})
+        if "parameter_longname" in v:
+            params[bx["id"]] = [v["parameter_longname"], v["parameter_shortname"], 0]
+    pbanks = dict(params.get("parameterbanks", {}))
+    for i, (name, names) in enumerate(banks):
+        idx = first_index + i
+        pbanks[str(idx)] = {"index": idx, "name": name, "parameters": (list(names) + [""] * 8)[:8]}
+    params["parameterbanks"] = pbanks
+    params.setdefault("inherited_shortname", 1)
+    return params
 
 
 # --------------------------------------------------------------------------- module patcher
@@ -689,11 +720,173 @@ def build_tester() -> dict:
     patcher = pb.patcher([60, 80, 1700, 2100], openinpresentation=1)
     patcher["dependency_cache"] = []
     patcher["autosave"] = 0
-    patcher["parameterbanks"] = {
-        "0": {"index": 0, "name": BANK_MAIN[0], "parameters": list(BANK_MAIN[1])},
-        "1": {"index": 1, "name": BANK_SETUP[0], "parameters": [*BANK_SETUP[1], "Gain"] + [""] * 6},
-    }
+    patcher["parameters"] = parameters_block(
+        pb.boxes, [BANK_MAIN, (BANK_SETUP[0], [*BANK_SETUP[1], "Gain"])])
     return {"patcher": patcher}
+
+
+# --------------------------------------------------------------------------- Granulator III
+
+GRANULATOR_OUT = "Granulator III Push.amxd"
+GRANULATOR_BANKS_FROM = 8  # the stock device has banks 0..7
+
+
+def read_frozen(raw: bytes) -> tuple[bytes, list[dict]]:
+    """Parse a *frozen* .amxd (device with embedded dependencies).
+
+    Layout inside the "ptch" chunk:
+      "mx@c" | u32be 16 | u32be 0 | u32be dir_offset
+      <data of every embedded file, back to back, starting at offset 16>
+      "dlst" | u32be len | ("dire" | u32be len | fields...)*
+    Each "dire" holds fields "type", "fnam", "sz32", "of32", "vers", "flag", "mdat"
+    as  tag | u32be len (incl. this 8-byte header) | value.  Offsets are relative
+    to the start of the "mx@c" header.  The first entry is the device patcher.
+    Returns (outer 32-byte header, entries) where every entry has its raw
+    directory bytes and its data.
+    """
+    assert raw[:4] == b"ampf" and raw[24:28] == b"ptch", "not an .amxd file"
+    size = struct.unpack("<I", raw[28:32])[0]
+    pl = raw[32:32 + size]
+    assert pl[:4] == b"mx@c", "not a frozen device (no mx@c header)"
+    dir_off = struct.unpack(">I", pl[12:16])[0]
+    assert pl[dir_off:dir_off + 4] == b"dlst"
+    dl = struct.unpack(">I", pl[dir_off + 4:dir_off + 8])[0]
+    dlst = pl[dir_off + 8:dir_off + dl]
+    entries = []
+    j = 0
+    while j < len(dlst):
+        assert dlst[j:j + 4] == b"dire"
+        el = struct.unpack(">I", dlst[j + 4:j + 8])[0]
+        e = dlst[j:j + el]
+        j += el
+        fields = {}
+        m = 8
+        while m < len(e):
+            tag = e[m:m + 4]
+            fl = struct.unpack(">I", e[m + 4:m + 8])[0]
+            fields[tag] = (m + 8, e[m + 8:m + fl])
+            m += fl
+        sz = struct.unpack(">I", fields[b"sz32"][1])[0]
+        of = struct.unpack(">I", fields[b"of32"][1])[0]
+        entries.append({
+            "name": fields[b"fnam"][1].rstrip(b"\0").decode("utf-8"),
+            "dire": e,
+            "sz_pos": fields[b"sz32"][0],
+            "of_pos": fields[b"of32"][0],
+            "data": pl[of:of + sz],
+        })
+    return raw[:32], entries
+
+
+def write_frozen(entries: list[dict], device_type: bytes = b"iiii") -> bytes:
+    data = b""
+    dires = b""
+    for e in entries:
+        of = 16 + len(data)
+        data += e["data"]
+        d = bytearray(e["dire"])
+        d[e["sz_pos"]:e["sz_pos"] + 4] = struct.pack(">I", len(e["data"]))
+        d[e["of_pos"]:e["of_pos"] + 4] = struct.pack(">I", of)
+        dires += bytes(d)
+    dir_off = 16 + len(data)
+    payload = (b"mx@c" + struct.pack(">III", 16, 0, dir_off) + data
+               + b"dlst" + struct.pack(">I", 8 + len(dires)) + dires)
+    header = (
+        b"ampf" + struct.pack("<I", 4) + device_type
+        + b"meta" + struct.pack("<I", 4) + struct.pack("<I", 7)
+        + b"ptch" + struct.pack("<I", len(payload))
+    )
+    return header + payload
+
+
+def patch_granulator(doc: dict) -> dict:
+    """Add the picker to the Granulator III main patcher (in place) and return it."""
+    p = doc["patcher"]
+    boxes = {b["box"]["id"]: b["box"] for b in p["boxes"]}
+
+    # the two objects we hook into
+    drop = next(i for i, b in boxes.items() if b["maxclass"] == "live.drop")
+    filehandling = next(i for i, b in boxes.items() if b.get("text") == "p FileHandling")
+    for l in p["lines"]:
+        s_, d_ = l["patchline"]["source"], l["patchline"]["destination"]
+        if s_[0] == drop and d_[0] == filehandling:
+            break
+    else:
+        raise SystemExit("live.drop -> p FileHandling connection not found; is this Granulator III?")
+    names = {b.get("saved_attribute_attributes", {}).get("valueof", {}).get("parameter_longname")
+             for b in boxes.values()}
+    clash = names & {P_FOLDER, P_FILE, P_LOAD, P_AUTO, P_RANDOM, P_RESCAN, P_FOLDERS, P_FILES, P_ROOT}
+    assert not clash, f"parameter names already used: {clash}"
+
+    pb = PatcherBuilder()
+    pb._n = max(int(i.split("-")[1]) for i in boxes)  # new ids continue after the existing ones
+    max_y = max(b["patching_rect"][1] + b["patching_rect"][3] for b in boxes.values())
+    x0, y0 = 30, max_y + 120
+
+    # presentation: a new column to the right of the stock UI (device gets wider)
+    col = float(p["devicewidth"]) + 6
+    p["devicewidth"] = col + 259
+    prects = {
+        "root": [col, 24, 100, 15],
+        "path": [col + 104, 21, 122, 20],
+        "rescan": [col + 230, 19, 20, 20],
+        "folder_menu": [col, 48, 150, 20],
+        "folder": [col + 156, 51, 44, 15],
+        "file_menu": [col, 74, 150, 20],
+        "file": [col + 156, 77, 44, 15],
+        "load": [col, 100, 20, 20],
+        "auto": [col + 60, 103, 15, 15],
+        "random": [col + 110, 100, 20, 20],
+        "folders": [col + 156, 103, 44, 15],
+        "files": [col + 206, 103, 44, 15],
+        "resolved": [col, 126, 250, 18],
+        "loaded": [col, 146, 250, 18],
+    }
+    pb.add("panel", [x0, y0 - 100, 260, 169], numinlets=1, numoutlets=0, presentation=1,
+           presentation_rect=[col - 3, 0, 262, 169], bgfillcolor_type="color",
+           bgfillcolor_color=[0.13, 0.13, 0.13, 1.0], bgfillcolor_color1=[0.13, 0.13, 0.13, 1.0],
+           bgfillcolor_color2=[0.13, 0.13, 0.13, 1.0], rounded=0)
+    pb.comment("Push Sample", [x0 + 270, y0 - 100, 100, 20], presentation=1,
+               presentation_rect=[col, 3, 100, 18], fontsize=11.0, fontface=1,
+               textcolor=[0.9, 0.9, 0.9, 1.0])
+    for text, rect in (("Rescan", [col + 205, 21, 24, 18]), ("Load", [col + 22, 102, 34, 18]),
+                       ("Auto", [col + 76, 102, 32, 18]), ("Rnd", [col + 132, 102, 24, 18]),
+                       ("Fld", [col + 200, 79, 24, 18]), ("File", [col + 200, 53, 24, 18])):
+        pb.comment(text, [x0 + 270, y0 - 80, 50, 18], presentation=1, presentation_rect=rect,
+                   fontsize=9.0, textcolor=[0.8, 0.8, 0.8, 1.0])
+    pb.comment("Push Sample Picker (added): Select folder / file with the Smp parameters, "
+               "the path goes to p FileHandling exactly like a dropped file.",
+               [x0, y0 - 40, 900, 20], fontsize=11.0, fontface=1)
+    add_picker(pb, x0, y0, present=True, prect_of=lambda k: prects[k])
+
+    # hook: receive the path, store it in live.drop (so the Set / preset remembers it) and load it
+    recv = pb.obj(f"r {PATH_SEND}", [x0 + 700, y0 - 100, 160, 22], 0, [""])
+    t_ss = pb.obj("t s s", [x0 + 700, y0 - 70, 45, 22], 1, ["", ""])
+    set_drop = pb.obj("prepend set", [x0 + 760, y0 - 40, 80, 22], 1, [""])
+    pb.connect(recv, 0, t_ss, 0)
+    pb.connect(t_ss, 1, set_drop, 0)
+    pb.connect(set_drop, 0, drop, 0)
+    pb.connect(t_ss, 0, filehandling, 0)
+
+    p["boxes"].extend(pb.boxes)
+    p["lines"].extend(pb.lines)
+    p["parameters"] = parameters_block(pb.boxes, [BANK_MAIN, BANK_SETUP], existing=p["parameters"],
+                                       first_index=GRANULATOR_BANKS_FROM)
+    return doc
+
+
+def build_granulator(orig: Path, out: Path) -> None:
+    header, entries = read_frozen(orig.read_bytes())
+    assert entries[0]["name"].endswith(".amxd"), entries[0]["name"]
+    raw_json = entries[0]["data"]
+    doc = json.loads(raw_json[:raw_json.rfind(b"}") + 1].decode("utf-8"))
+    patch_granulator(doc)
+    text = json.dumps(doc, indent="\t", ensure_ascii=False) + "\n"
+    entries[0]["data"] = text.encode("utf-8") + b"\x00"
+    out.write_bytes(write_frozen(entries, header[8:12]))
+    p = doc["patcher"]
+    print(f"wrote {out.name} ({len(p['boxes'])} boxes, {len(p['lines'])} connections, "
+          f"{len(entries)} embedded files, devicewidth {p['devicewidth']})")
 
 
 # --------------------------------------------------------------------------- .amxd container
@@ -715,6 +908,13 @@ def pack_amxd(patcher_json: str, device_type: bytes = b"iiii") -> bytes:
 
 
 def main() -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--granulator", metavar="AMXD", type=Path,
+                    help="path to your copy of Granulator III.amxd; writes 'Granulator III Push.amxd' next to it")
+    args = ap.parse_args()
+
     module = build_module()
     text = json.dumps(module, indent="\t", ensure_ascii=False) + "\n"
     (HERE / f"{MODULE_NAME}.maxpat").write_text(text, encoding="utf-8")
@@ -727,6 +927,9 @@ def main() -> None:
     (HERE / f"{TESTER_NAME}.amxd").write_bytes(pack_amxd(text, b"iiii"))
     print(f"wrote {TESTER_NAME}.maxpat and {TESTER_NAME}.amxd ({len(tester['patcher']['boxes'])} boxes, "
           f"{len(tester['patcher']['lines'])} connections)")
+
+    if args.granulator:
+        build_granulator(args.granulator, args.granulator.parent / GRANULATOR_OUT)
 
 
 if __name__ == "__main__":

@@ -14,16 +14,16 @@ computer. A community mod for Granulator III already works this way (samples in
 `User Library/Samples/Folders/<set>/`, Folder / Sample / Load / Reload / Random
 dials on a second bank), which is good evidence the approach holds up on Push.
 
-Granulator III itself is Ableton's copyrighted device and is not in this repo.
-Everything here is generated from `build.py` and is meant to be pasted into
-your own copy of the device (Live lets you edit any Max for Live device and save
-it to your User Library).
+Granulator III itself is Ableton's copyrighted device and is not in this repo
+(`.gitignore` keeps the original and the patched build out). Everything here is
+generated from `build.py`, which can patch your own copy of the device in one
+step (see below) or be pasted in by hand.
 
 ## Files
 
 | File | What it is |
 | --- | --- |
-| `build.py` | Generates the three files below from scratch. `python3 build.py` |
+| `build.py` | Generates the three files below from scratch (`python3 build.py`), and with `--granulator <your Granulator III.amxd>` also writes the patched `Granulator III Push.amxd`. |
 | `PushSamplePicker.maxpat` | The picker on its own, laid out for **Select All → Copy → Paste** into Granulator III. |
 | `PushSampleTester.amxd` | A tiny instrument (`buffer~` + `groove~`) with the picker already wired in. Put it on Push first to verify folder scanning and sample loading work on your unit before touching Granulator III. |
 | `PushSampleTester.maxpat` | Same as a plain Max patcher. |
@@ -91,29 +91,55 @@ the root itself as the file folder (`Folders` shows 0, `Files` shows the count).
    try the other *Root* choices on the *Sample Setup* bank; the one that gives
    a non-zero count tells you how paths resolve on the Push.
 
-## Putting it into Granulator III
+## Putting it into Granulator III (automated)
 
-1. In Live, drop Granulator III on a track and click its **Edit** button (the
-   Max editor opens). Immediately *File → Save As…* into your User Library
-   (e.g. `Granulator III Push.amxd`) so the original stays untouched.
-2. *File → Open…* `PushSamplePicker.maxpat`, **Select All**, **Copy**, switch to
-   the Granulator III patcher and **Paste**. The pasted objects are not in
-   presentation mode, so nothing lands on top of the device UI.
-3. Find the object that Granulator III's `live.drop` outlet connects to (the
-   object that receives the dropped file's path; it feeds the `buffer~` via a
-   `replace` message and probably updates the file-name display and waveform
-   too). Add a `[r ---push_sample_path]` object and connect its outlet to that
-   **same inlet**. That's the whole integration: the picker outputs the file
-   path exactly like `live.drop` does.
-4. Click the **REGISTER PUSH BANKS** message box once. It appends two banks
-   (*Sample*, *Sample Setup*) after Granulator III's existing Push banks.
-   Alternatively add them by hand in the Max editor's *Parameters* window
-   (*Banks* tab).
-5. Save the device, then copy it to the Push like any other Max for Live device.
+`build.py` can patch your copy of the device directly:
+
+```sh
+python3 build.py --granulator "/path/to/Granulator III.amxd"
+```
+
+It writes `Granulator III Push.amxd` next to the original. Copy that file into
+your User Library (*Presets → Instruments → Max Instrument*) and to the Push
+like any other Max for Live device. The original and the patched device are
+git-ignored here because they are Ableton's copyrighted content.
+
+What the patch does (see `patch_granulator()`):
+
+* Granulator III is a **frozen** device: the `.amxd` embeds its sub-patchers,
+  SVGs and the `g3_mono_24~` / `g3_poly_24~` externals (macOS, Windows and
+  Linux x86-64 builds, which is why it runs on Push). `read_frozen()` /
+  `write_frozen()` unpack and repack that container; only the main patcher is
+  changed, every other embedded file is written back byte for byte.
+* The picker objects are appended to the main patcher with fresh object ids,
+  and its UI goes into a new 260 px column on the right of the device
+  (`devicewidth` grows from 729 to 994).
+* The hook is one `[r ---push_sample_path]` → `[t s s]`: the path is first
+  stored in the device's own `live.drop` (parameter *SampleDrop*, via `set`, so
+  the Set / preset remembers the sample exactly as if it had been dropped), then
+  sent into `p FileHandling`, the sub-patcher `live.drop` feeds. Inside it the
+  path goes through `route none` → `prepend replace` → `buffer~ ---SoundFile`,
+  plus the file-name display, waveform and engine updates. So nothing about how
+  the device loads a sample changes; only where the path comes from.
+* Two Push banks are appended after the stock eight: *Sample* (index 8) and
+  *Sample Setup* (index 9), and the new parameters are added to the patcher's
+  parameter map.
+* The picker never loads a file on its own while the device is loading: loading
+  is armed by `live.thisdevice`, and a rescan (including the one at load time)
+  never triggers *Auto*. A Set therefore restores its own sample through
+  `live.drop`, and the picker only acts on your encoder moves.
 
 The parameter names are prefixed (`Smp Folder`, `Smp File`, …) so they cannot
 collide with Granulator III's own parameters; Push shows the short names
 (*Folder*, *File*, …).
+
+### Manual alternative
+
+If you prefer to do it in the Max editor: open Granulator III's *Edit* button,
+*File → Save As…* a copy, open `PushSamplePicker.maxpat`, Select All, Copy,
+Paste into the device patcher, add `[r ---push_sample_path]` and connect it to
+`p FileHandling` inlet 0 (the inlet `live.drop` feeds), click **REGISTER PUSH
+BANKS** once, save.
 
 ## What still needs checking on real hardware
 

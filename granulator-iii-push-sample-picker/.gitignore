@@ -1,0 +1,5 @@
+# Ableton's Granulator III is copyrighted: keep your copy and the patched build out of git.
+Granulator III*.amxd
+granulator_orig.json
+deps/
+__pycache__/
